@@ -357,6 +357,49 @@ class MjModel(metaclass=_MjModelMeta):
             p.name_meshadr, p.nmesh, mujoco.mjtObj.mjOBJ_MESH
         )
 
+    def robot_obj_collision_dist(self, obj_name):
+        """Get the smallest distance between the robots in the scene and the object.
+
+        Args:
+            obj_name (str): name of the object
+        """
+        smallest_dist = np.inf
+        if not hasattr(self, "geom_dists"):
+            self.set_dummy_geom_dists()
+        for robot_geom in self.geom_dists:
+            for obj_geom_name in self.geom_dists[robot_geom]:
+                if obj_name in obj_geom_name:
+                    smallest_dist = min(smallest_dist, self.geom_dists[robot_geom][obj_geom_name])
+        return smallest_dist
+    
+
+    def set_dummy_geom_dists(self):
+        """A hacky way to set dummy geom distances before the real ones are set."""
+        geom_dists = {}
+        robot_geom_names = [name for name in self.geom_names if name is not None and 'robot' in name and 'visual' not in name]
+        gripper_geom_names = [name for name in self.geom_names if name is not None and 'gripper' in name and 'visual' not in name]
+    
+        for name in self.geom_names:
+            if name is None or 'visual' in name:
+                continue
+            obj_id = self.geom_name2id(name)
+            for robot_geom_name in robot_geom_names: # compute distance to robot geoms
+                robot_geom_id = self.geom_name2id(robot_geom_name)    
+                if obj_id == robot_geom_id: # skip computing distance to itself
+                    continue
+                geom_dist = np.inf # dummy value
+                geom_dists.setdefault(robot_geom_name, {}).update({name: geom_dist})
+
+            for gripper_geom_name in gripper_geom_names: # compute distance to robot gripper geoms
+                gripper_geom_id = self.geom_name2id(gripper_geom_name)
+                if obj_id == gripper_geom_id:
+                    continue
+                geom_dist = np.inf # dummy value
+                geom_dists.setdefault(gripper_geom_name, {}).update({name: geom_dist})
+        self.geom_dists = geom_dists
+    
+                    
+    
     def body_id2name(self, id):
         """Get body name from mujoco body id."""
         if id not in self._body_id2name:
@@ -1085,11 +1128,84 @@ class MjSim:
 
     def forward(self):
         """Forward call to synchronize derived quantities."""
-        mujoco.mj_forward(self.model._model, self.data._data)
+        mujoco.mj_forward(self.model._model, self.data._data)    
 
     def step(self, with_udd=True):
         """Step simulation."""
         mujoco.mj_step(self.model._model, self.data._data)
+        # a hacky way to get the geom distances
+        geom_dists = self.compute_geom_dists()
+        setattr(self.model, 'geom_dists', geom_dists)
+
+    def robot_obj_collision_dist(self, obj_name):
+        """Get the smallest distance between the robots in the scene and the object.
+
+        Args:
+            obj_name (str): name of the object
+        """
+        smallest_dist = np.inf
+        if not hasattr(self.model, "geom_dists"):
+            geom_dists = self.compute_geom_dists()
+            setattr(self.model, 'geom_dists', geom_dists)
+        for robot_geom in self.model.geom_dists:
+            for obj_geom_name in self.model.geom_dists[robot_geom]:
+                if obj_name in obj_geom_name:
+                    smallest_dist = min(smallest_dist, self.model.geom_dists[robot_geom][obj_geom_name])
+        return smallest_dist
+    
+
+    def set_dummy_geom_dists(self):
+        """A hacky way to set dummy geom distances before the real ones are set."""
+        geom_dists = {}
+        robot_geom_names = [name for name in self.geom_names if name is not None and 'robot' in name and 'visual' not in name]
+        gripper_geom_names = [name for name in self.geom_names if name is not None and 'gripper' in name and 'visual' not in name]
+    
+        for name in self.geom_names:
+            if name is None or 'visual' in name:
+                continue
+            obj_id = self.geom_name2id(name)
+            for robot_geom_name in robot_geom_names: # compute distance to robot geoms
+                robot_geom_id = self.geom_name2id(robot_geom_name)    
+                if obj_id == robot_geom_id: # skip computing distance to itself
+                    continue
+                geom_dist = np.inf # dummy value
+                geom_dists.setdefault(robot_geom_name, {}).update({name: geom_dist})
+
+            for gripper_geom_name in gripper_geom_names: # compute distance to robot gripper geoms
+                gripper_geom_id = self.geom_name2id(gripper_geom_name)
+                if obj_id == gripper_geom_id:
+                    continue
+                geom_dist = np.inf # dummy value
+                geom_dists.setdefault(gripper_geom_name, {}).update({name: geom_dist})
+        self.geom_dists = geom_dists
+
+    def compute_geom_dists(self):
+        """Compute distances between robot and object geoms.
+        """
+        geom_dists = {}
+        robot_geom_names = [name for name in self.model.geom_names if name is not None and 'robot' in name and 'visual' not in name]
+        gripper_geom_names = [name for name in self.model.geom_names if name is not None and 'gripper' in name and 'visual' not in name]
+    
+        for name in self.model.geom_names:
+            if name is None or 'visual' in name: # skip visual geoms
+                continue
+            obj_id = self.model.geom_name2id(name)
+            for robot_geom_name in robot_geom_names: # compute distance to robot geoms
+                robot_geom_id = self.model.geom_name2id(robot_geom_name)    
+                if obj_id == robot_geom_id: # skip computing distance to itself
+                    continue
+                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, robot_geom_id, obj_id, 10, None)
+                geom_dists.setdefault(robot_geom_name, {}).update({name: geom_dist})
+
+            for gripper_geom_name in gripper_geom_names: # compute distance to robot gripper geoms
+                gripper_geom_id = self.model.geom_name2id(gripper_geom_name)
+                if obj_id == gripper_geom_id:
+                    continue
+                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, gripper_geom_id, obj_id, 10, None)
+                geom_dists.setdefault(gripper_geom_name, {}).update({name: geom_dist})
+        return geom_dists
+
+            
 
     def render(
         self,
