@@ -1142,6 +1142,9 @@ class MjSim:
 
         Args:
             obj_name (str): name of the object
+        Returns:
+            smallest_dist (float): smallest distance between robot and object
+            closest_point (np.ndarray): closest point on the robot to the object
         """
         smallest_dist = np.inf
         if not hasattr(self.model, "geom_dists"):
@@ -1150,8 +1153,11 @@ class MjSim:
         for robot_geom in self.model.geom_dists:
             for obj_geom_name in self.model.geom_dists[robot_geom]:
                 if obj_name in obj_geom_name:
-                    smallest_dist = min(smallest_dist, self.model.geom_dists[robot_geom][obj_geom_name])
-        return smallest_dist
+                    dist = self.model.geom_dists[robot_geom][obj_geom_name]['dist']
+                    if dist < smallest_dist:
+                        smallest_dist = dist
+                        closest_point = self.model.geom_dists[robot_geom][obj_geom_name]['closest_point']
+        return smallest_dist, closest_point
     
 
     def set_dummy_geom_dists(self):
@@ -1183,26 +1189,39 @@ class MjSim:
         """Compute distances between robot and object geoms.
         """
         geom_dists = {}
-        robot_geom_names = [name for name in self.model.geom_names if name is not None and 'robot' in name and 'visual' not in name]
-        gripper_geom_names = [name for name in self.model.geom_names if name is not None and 'gripper' in name and 'visual' not in name]
+        robot_geom_names = [name for name in self.model.geom_names if name is not None and 'robot' in name and 'base' not in name and 'visual' not in name and 'vis' not in name] # ignore base collisions since it's constantly colliding with the mount
+        gripper_geom_names = [name for name in self.model.geom_names if name is not None and 'gripper' in name and 'visual' not in name and 'vis' not in name]
+        other_geom_names = [name for name in self.model.geom_names if name is not None and 'robot' not in name and 'gripper' not in name and 'visual' not in name and 'vis' not in name]
     
-        for name in self.model.geom_names:
-            if name is None or 'visual' in name: # skip visual geoms
+        for name in other_geom_names:
+            if name is None or 'visual' in name or 'vis' in name: # skip visual geoms
                 continue
             obj_id = self.model.geom_name2id(name)
             for robot_geom_name in robot_geom_names: # compute distance to robot geoms
                 robot_geom_id = self.model.geom_name2id(robot_geom_name)    
                 if obj_id == robot_geom_id: # skip computing distance to itself
                     continue
-                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, robot_geom_id, obj_id, 10, None)
-                geom_dists.setdefault(robot_geom_name, {}).update({name: geom_dist})
+                fromto = np.zeros(6)
+                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, robot_geom_id, obj_id, 0.05, fromto)
+                geom_dists.setdefault(robot_geom_name, {}).update({name: 
+                                                                   {
+                                                                       'dist': max(geom_dist, 0), # make sure distance is non-negative
+                                                                       'closest_point': fromto[:3]
+                                                                    }
+                                                                }) 
 
             for gripper_geom_name in gripper_geom_names: # compute distance to robot gripper geoms
                 gripper_geom_id = self.model.geom_name2id(gripper_geom_name)
                 if obj_id == gripper_geom_id:
                     continue
-                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, gripper_geom_id, obj_id, 10, None)
-                geom_dists.setdefault(gripper_geom_name, {}).update({name: geom_dist})
+                fromto = np.zeros(6)
+                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, gripper_geom_id, obj_id, 0.05, fromto)
+                geom_dists.setdefault(gripper_geom_name, {}).update({name: 
+                                                                   {
+                                                                       'dist': max(geom_dist, 0), # make sure distance is non-negative
+                                                                       'closest_point': fromto[:3]
+                                                                    }
+                                                                }) 
         return geom_dists
 
             
