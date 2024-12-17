@@ -1106,6 +1106,8 @@ class MjSim:
         """
         self.model = MjModel(model)
         self.data = MjData(self.model)
+        geom_dists = self.compute_geom_dists()
+        setattr(self.model, 'geom_dists', geom_dists)
 
         # offscreen render context object
         self._render_context_offscreen = None
@@ -1125,6 +1127,8 @@ class MjSim:
     def reset(self):
         """Reset simulation."""
         mujoco.mj_resetData(self.model._model, self.data._data)
+        geom_dists = self.compute_geom_dists()
+        setattr(self.model, 'geom_dists', geom_dists)
 
     def forward(self):
         """Forward call to synchronize derived quantities."""
@@ -1136,6 +1140,7 @@ class MjSim:
         # a hacky way to get the geom distances
         geom_dists = self.compute_geom_dists()
         setattr(self.model, 'geom_dists', geom_dists)
+    
 
     def robot_obj_collision_dist(self, obj_name):
         """Get the smallest distance between the robots in the scene and the object.
@@ -1147,11 +1152,12 @@ class MjSim:
             closest_point (np.ndarray): closest point on the robot to the object
         """
         smallest_dist = np.inf
+        closest_point = [None, None, None]
         if not hasattr(self.model, "geom_dists"):
             geom_dists = self.compute_geom_dists()
             setattr(self.model, 'geom_dists', geom_dists)
         for robot_geom in self.model.geom_dists:
-            for obj_geom_name in self.model.geom_dists[robot_geom]:
+            for obj_geom_name in self.model.geom_dists.get(robot_geom, {}):
                 if obj_name in obj_geom_name:
                     dist = self.model.geom_dists[robot_geom][obj_geom_name]['dist']
                     if dist < smallest_dist:
@@ -1202,29 +1208,20 @@ class MjSim:
                 if obj_id == robot_geom_id: # skip computing distance to itself
                     continue
                 fromto = np.zeros(6)
-                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, robot_geom_id, obj_id, 0.05, fromto)
-                geom_dists.setdefault(robot_geom_name, {}).update({name: 
-                                                                   {
-                                                                       'dist': max(geom_dist, 0), # make sure distance is non-negative
-                                                                       'closest_point': fromto[:3]
-                                                                    }
-                                                                }) 
+                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, robot_geom_id, obj_id, 0.03, fromto)
+                if geom_dist < 0.03:
+                    geom_dists.setdefault(robot_geom_name, {}).update({name: {'dist': max(geom_dist, 0), 'closest_point': fromto[:3]}}) # make sure distance is non-negative, 
 
             for gripper_geom_name in gripper_geom_names: # compute distance to robot gripper geoms
                 gripper_geom_id = self.model.geom_name2id(gripper_geom_name)
                 if obj_id == gripper_geom_id:
                     continue
                 fromto = np.zeros(6)
-                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, gripper_geom_id, obj_id, 0.05, fromto)
-                geom_dists.setdefault(gripper_geom_name, {}).update({name: 
-                                                                   {
-                                                                       'dist': max(geom_dist, 0), # make sure distance is non-negative
-                                                                       'closest_point': fromto[:3]
-                                                                    }
-                                                                }) 
+                geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, gripper_geom_id, obj_id, 0.03, fromto)
+                if geom_dist < 0.03:
+                    geom_dists.setdefault(gripper_geom_name, {}).update({name: {'dist': max(geom_dist, 0), 'closest_point': fromto[:3]}}) # make sure distance is non-negative,
         return geom_dists
 
-            
 
     def render(
         self,
