@@ -1209,7 +1209,7 @@ class MjSim:
                     continue
                 fromto = np.zeros(6)
                 geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, robot_geom_id, obj_id, 0.03, fromto)
-                if geom_dist < 0.03:
+                if geom_dist < 0.015:
                     geom_dists.setdefault(robot_geom_name, {}).update({name: {'dist': max(geom_dist, 0), 'closest_point': fromto[:3]}}) # make sure distance is non-negative, 
 
             for gripper_geom_name in gripper_geom_names: # compute distance to robot gripper geoms
@@ -1218,7 +1218,7 @@ class MjSim:
                     continue
                 fromto = np.zeros(6)
                 geom_dist = mujoco.mj_geomDistance(self.model._model, self.data._data, gripper_geom_id, obj_id, 0.03, fromto)
-                if geom_dist < 0.03:
+                if geom_dist < 0.015:
                     geom_dists.setdefault(gripper_geom_name, {}).update({name: {'dist': max(geom_dist, 0), 'closest_point': fromto[:3]}}) # make sure distance is non-negative,
         return geom_dists
 
