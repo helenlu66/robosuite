@@ -2,7 +2,6 @@ import random
 from collections import OrderedDict
 
 import numpy as np
-
 import robosuite.utils.transform_utils as T
 from robosuite.environments.manipulation.single_arm_env import SingleArmEnv
 from robosuite.models.arenas import PegsArena
@@ -10,7 +9,6 @@ from robosuite.models.objects import RoundNutObject, SquareNutObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
-
 
 class NutAssembly(SingleArmEnv):
     """
@@ -508,8 +506,11 @@ class NutAssembly(SingleArmEnv):
                 # Create sensors for this nut
                 using_nut = self.single_object_mode == 0 or self.nut_id == i
                 nut_sensors, nut_sensor_names = self._create_nut_sensors(nut_name=nut.name, modality=modality)
+                nut_handle_sensors, nut_handle_sensor_names = self._create_nut_handle_sensors(nut=nut, modality=modality)
                 sensors += nut_sensors
                 names += nut_sensor_names
+                sensors += nut_handle_sensors
+                names += nut_handle_sensor_names
                 enableds += [using_nut] * 4
                 actives += [using_nut] * 4
                 self.nut_id_to_sensors[i] = nut_sensor_names
@@ -536,6 +537,28 @@ class NutAssembly(SingleArmEnv):
                 )
 
         return observables
+    
+    def _create_nut_handle_sensors(self, nut, modality="object"):
+        """Helper function to create sensors for a given important site.
+
+        Args:
+            nut (MujocoXMLObject): Nut object to create sensors for
+            modality (str, optional): Modality to assign to all sensors. Defaults to "object".
+        """
+        nut_name = nut.name
+        handle_name = nut.important_sites["handle"]
+
+        @sensor(modality=modality)
+        def nut_handle_pos(obs_cache):
+            return self.sim.data.get_site_xpos(handle_name)
+        
+        @sensor(modality=modality)
+        def nut_handle_euler_angles(obs_cache):
+            return T.mat2euler(self.sim.data.get_site_xmat(handle_name))
+        
+        sensors = [nut_handle_pos, nut_handle_euler_angles]
+        names = [f"{nut_name}_handle_pos", f"{nut_name}_handle_euler_angles"]
+        return sensors, names
 
     def _create_nut_sensors(self, nut_name, modality="object"):
         """
@@ -558,8 +581,8 @@ class NutAssembly(SingleArmEnv):
             return np.array(self.sim.data.body_xpos[self.obj_body_id[nut_name]])
 
         @sensor(modality=modality)
-        def nut_quat(obs_cache):
-            return T.convert_quat(self.sim.data.body_xquat[self.obj_body_id[nut_name]], to="xyzw")
+        def nut_euler_angles(obs_cache):
+            return T.mat2euler(T.quat2mat(T.convert_quat(self.sim.data.body_xquat[self.obj_body_id[nut_name]], to="xyzw")))
 
         @sensor(modality=modality)
         def nut_to_eef_pos(obs_cache):
@@ -580,8 +603,8 @@ class NutAssembly(SingleArmEnv):
                 obs_cache[f"{nut_name}_to_{pf}eef_quat"] if f"{nut_name}_to_{pf}eef_quat" in obs_cache else np.zeros(4)
             )
 
-        sensors = [nut_pos, nut_quat, nut_to_eef_pos, nut_to_eef_quat]
-        names = [f"{nut_name}_pos", f"{nut_name}_quat", f"{nut_name}_to_{pf}eef_pos", f"{nut_name}_to_{pf}eef_quat"]
+        sensors = [nut_pos, nut_euler_angles]
+        names = [f"{nut_name}_pos", f"{nut_name}_euler_angles"]
 
         return sensors, names
 

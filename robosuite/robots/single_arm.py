@@ -307,9 +307,13 @@ class SingleArm(Manipulator):
             return np.array(self.sim.data.site_xpos[self.eef_site_id])
 
         @sensor(modality=modality)
+        def eef_euler_angles(obs_cache):
+            return T.mat2euler(T.quat2mat(T.convert_quat(self.sim.data.get_body_xquat(self.robot_model.eef_name), to="xyzw")))
+        
+        @sensor(modality=modality)
         def eef_quat(obs_cache):
             return T.convert_quat(self.sim.data.get_body_xquat(self.robot_model.eef_name), to="xyzw")
-
+        
         @sensor(modality=modality)
         def eef_vel_lin(obs_cache):
             return np.array(self.sim.data.get_body_xvelp(self.robot_model.eef_name))
@@ -318,25 +322,25 @@ class SingleArm(Manipulator):
         def eef_vel_ang(obs_cache):
             return np.array(self.sim.data.get_body_xvelr(self.robot_model.eef_name))
 
-        sensors = [eef_pos, eef_quat, eef_vel_lin, eef_vel_ang]
-        names = [f"{pf}eef_pos", f"{pf}eef_quat", f"{pf}eef_vel_lin", f"{pf}eef_vel_ang"]
+        sensors = [eef_pos, eef_euler_angles, eef_quat, eef_vel_lin, eef_vel_ang]
+        names = [f"{pf}eef_pos", f"{pf}eef_euler_angles", f"{pf}eef_quat", f"{pf}eef_vel_lin", f"{pf}eef_vel_ang"]
         # Exclude eef vel by default
-        actives = [True, True, False, False]
+        actives = [True, True, False, False, False]
 
         # add in gripper sensors if this robot has a gripper
         if self.has_gripper:
 
             @sensor(modality=modality)
-            def gripper_qpos(obs_cache):
+            def gripper_fingers_qpos(obs_cache):
                 return np.array([self.sim.data.qpos[x] for x in self._ref_gripper_joint_pos_indexes])
 
             @sensor(modality=modality)
-            def gripper_qvel(obs_cache):
+            def gripper_fingers_qvel(obs_cache):
                 return np.array([self.sim.data.qvel[x] for x in self._ref_gripper_joint_vel_indexes])
 
-            sensors += [gripper_qpos, gripper_qvel]
-            names += [f"{pf}gripper_qpos", f"{pf}gripper_qvel"]
-            actives += [True, True]
+            sensors += [gripper_fingers_qpos, gripper_fingers_qvel]
+            names += [f"{pf}gripper_fingers_qpos", f"{pf}gripper_fingers_qvel"]
+            actives += [True, False]
 
         # Create observables for this robot
         for name, s, active in zip(names, sensors, actives):

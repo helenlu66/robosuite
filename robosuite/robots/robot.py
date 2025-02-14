@@ -201,7 +201,7 @@ class Robot(object):
         sensors = [joint_pos, joint_pos_cos, joint_pos_sin, joint_vel]
         names = ["joint_pos", "joint_pos_cos", "joint_pos_sin", "joint_vel"]
         # We don't want to include the direct joint pos sensor outputs
-        actives = [False, True, True, True]
+        actives = [False, False, False, False] # turn it off for the LLM guided reward shaping
 
         # Create observables for this robot
         observables = OrderedDict()
