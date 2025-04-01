@@ -371,7 +371,7 @@ class NutAssembly(SingleArmEnv):
         if (
             abs(obj_pos[0] - peg_pos[0]) < 0.05
             and abs(obj_pos[1] - peg_pos[1]) < 0.05
-            and obj_pos[2] < self.table_offset[2] + 0.08 + 0.02 # 0.08 is the height of the peg, 0.02 is the offset to the bottom of the nut
+            and obj_pos[2] < self.table_offset[2] + 0.05 + 0.02 # 0.05 is the height of the peg, 0.02 is the offset to the bottom of the nut
         ):
             res = True
         return res
