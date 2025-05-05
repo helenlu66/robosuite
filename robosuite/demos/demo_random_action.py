@@ -50,14 +50,24 @@ if __name__ == "__main__":
         use_camera_obs=False,
         control_freq=20,
     )
-    env.reset()
+    obs = env.reset()
     env.viewer.set_camera(camera_id=0)
 
     # Get action limits
     low, high = env.action_spec
 
+    displacements = []
     # do visualization
-    for i in range(10000):
+    for i in range(25):
         action = np.random.uniform(low, high)
+        prev = obs['robot0_eef_pos']
+        action = np.array([1,1,1,0])
         obs, reward, done, _ = env.step(action)
+        curr = obs['robot0_eef_pos']
+        displacement = np.linalg.norm(curr - prev)
+        displacements.append(displacement)
+        print("displacement: ", displacement)
+        print("action: ", action)
         env.render()
+    
+    print("Average displacement: ", np.mean(displacements))

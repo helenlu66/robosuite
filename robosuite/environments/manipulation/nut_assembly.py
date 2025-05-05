@@ -547,6 +547,7 @@ class NutAssembly(SingleArmEnv):
         """
         nut_name = nut.name
         handle_name = nut.important_sites["handle"]
+        pf = self.robots[0].robot_model.naming_prefix
 
         @sensor(modality=modality)
         def nut_handle_pos(obs_cache):
@@ -556,8 +557,32 @@ class NutAssembly(SingleArmEnv):
         def nut_handle_euler_angles(obs_cache):
             return T.mat2euler(self.sim.data.get_site_xmat(handle_name))
         
-        sensors = [nut_handle_pos, nut_handle_euler_angles]
-        names = [f"{nut_name}_handle_pos", f"{nut_name}_handle_euler_angles"]
+        @sensor(modality=modality)
+        def nut_handle_to_eef_pos(obs_cache):
+             # # Immediately return default value if cache is empty
+            if any(
+                [name not in obs_cache for name in ["world_pose_in_gripper"]]
+            ):
+                return np.zeros(3)
+            nut_handle_pos = self.sim.data.get_site_xpos(handle_name)
+            nut_handle_xmat = self.sim.data.get_site_xmat(handle_name)
+            nut_handle_quat = T.mat2quat(nut_handle_xmat)
+            obj_pose = T.pose2mat((nut_handle_pos, nut_handle_quat))
+            rel_pose = T.pose_in_A_to_pose_in_B(obj_pose, obs_cache["world_pose_in_gripper"])
+            rel_pos, rel_quat = T.mat2pose(rel_pose)
+            obs_cache[f"{nut_name}_handle_to_{pf}eef_quat"] = rel_quat
+            return rel_pos
+        
+        @sensor(modality=modality)
+        def nut_handle_to_eef_quat(obs_cache):
+            return (
+                obs_cache[f"{nut_name}_handle_to_{pf}eef_quat"] if f"{nut_name}_handle_to_{pf}eef_quat" in obs_cache else np.zeros(4)
+            )
+        
+        sensors = [nut_handle_to_eef_pos]
+        names = [
+            f"{nut_name}_handle_to_{pf}eef_pos"
+        ]
         return sensors, names
 
     def _create_nut_sensors(self, nut_name, modality="object"):
@@ -586,12 +611,14 @@ class NutAssembly(SingleArmEnv):
 
         @sensor(modality=modality)
         def nut_to_eef_pos(obs_cache):
-            # Immediately return default value if cache is empty
+            # # Immediately return default value if cache is empty
             if any(
-                [name not in obs_cache for name in [f"{nut_name}_pos", f"{nut_name}_quat", "world_pose_in_gripper"]]
+                [name not in obs_cache for name in ["world_pose_in_gripper"]]
             ):
                 return np.zeros(3)
-            obj_pose = T.pose2mat((obs_cache[f"{nut_name}_pos"], obs_cache[f"{nut_name}_quat"]))
+            nut_pos = np.array(self.sim.data.body_xpos[self.obj_body_id[nut_name]])
+            nut_quat = T.convert_quat(self.sim.data.body_xquat[self.obj_body_id[nut_name]], to="xyzw")
+            obj_pose = T.pose2mat((nut_pos, nut_quat))
             rel_pose = T.pose_in_A_to_pose_in_B(obj_pose, obs_cache["world_pose_in_gripper"])
             rel_pos, rel_quat = T.mat2pose(rel_pose)
             obs_cache[f"{nut_name}_to_{pf}eef_quat"] = rel_quat
@@ -603,8 +630,9 @@ class NutAssembly(SingleArmEnv):
                 obs_cache[f"{nut_name}_to_{pf}eef_quat"] if f"{nut_name}_to_{pf}eef_quat" in obs_cache else np.zeros(4)
             )
 
-        sensors = [nut_pos, nut_euler_angles]
-        names = [f"{nut_name}_pos", f"{nut_name}_euler_angles"]
+
+        sensors = [nut_to_eef_pos]
+        names = [f"{nut_name}_to_{pf}eef_pos"]
 
         return sensors, names
 
