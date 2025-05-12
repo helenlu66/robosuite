@@ -338,9 +338,22 @@ class SingleArm(Manipulator):
             def gripper_fingers_qvel(obs_cache):
                 return np.array([self.sim.data.qvel[x] for x in self._ref_gripper_joint_vel_indexes])
 
-            sensors += [gripper_fingers_qpos, gripper_fingers_qvel]
-            names += [f"{pf}gripper_fingers_qpos", f"{pf}gripper_fingers_qvel"]
-            actives += [True, False]
+            # add gripper aperture
+            # NOTE: this is a hack to get the gripper aperture, which is not a joint
+            # but rather a function of the gripper joint positions
+            @sensor(modality=modality)
+            def gripper_aperture(obs_cache):
+                left_finger_id = "gripper0_left_inner_finger"
+                right_finger_id = "gripper0_right_inner_finger"
+                left_finger_pose = np.asarray(self.sim.data.body_xpos[self.sim.model.body_name2id(left_finger_id)])
+                right_finger_pose = np.asarray(self.sim.data.body_xpos[self.sim.model.body_name2id(right_finger_id)])
+                aperture = np.linalg.norm(left_finger_pose - right_finger_pose)
+                return np.array([aperture])
+            
+
+            sensors += [gripper_aperture, gripper_fingers_qpos, gripper_fingers_qvel]
+            names += [f"{pf}gripper_aperture", f"{pf}gripper_fingers_qpos", f"{pf}gripper_fingers_qvel"]
+            actives += [True, False, False]
 
         # Create observables for this robot
         for name, s, active in zip(names, sensors, actives):
