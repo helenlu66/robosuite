@@ -55,7 +55,11 @@ if _MUJOCO_GL not in ("disable", "disabled", "off", "false", "0"):
     if _SYSTEM == "Linux" and _MUJOCO_GL == "osmesa":
         from robosuite.renderers.context.osmesa_context import OSMesaGLContext as GLContext
     elif _SYSTEM == "Linux" and _MUJOCO_GL == "egl":
-        from robosuite.renderers.context.egl_context import EGLGLContext as GLContext
+        import os
+        if os.environ.get("MUJOCO_GL") != "disable":
+            from robosuite.renderers.context.egl_context import EGLGLContext as GLContext
+        else:
+            GLContext = None
     else:
         from robosuite.renderers.context.glfw_context import GLFWGLContext as GLContext
 
