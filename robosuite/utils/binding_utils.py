@@ -1110,8 +1110,8 @@ class MjSim:
         """
         self.model = MjModel(model)
         self.data = MjData(self.model)
-        geom_dists = self.compute_geom_dists()
-        setattr(self.model, 'geom_dists', geom_dists)
+        #geom_dists = self.compute_geom_dists()
+        #setattr(self.model, 'geom_dists', geom_dists)
 
         # offscreen render context object
         self._render_context_offscreen = None
@@ -1131,8 +1131,8 @@ class MjSim:
     def reset(self):
         """Reset simulation."""
         mujoco.mj_resetData(self.model._model, self.data._data)
-        geom_dists = self.compute_geom_dists()
-        setattr(self.model, 'geom_dists', geom_dists)
+        #geom_dists = self.compute_geom_dists()
+        #setattr(self.model, 'geom_dists', geom_dists)
 
     def forward(self):
         """Forward call to synchronize derived quantities."""
@@ -1142,8 +1142,8 @@ class MjSim:
         """Step simulation."""
         mujoco.mj_step(self.model._model, self.data._data)
         # a hacky way to get the geom distances
-        geom_dists = self.compute_geom_dists()
-        setattr(self.model, 'geom_dists', geom_dists)
+        #geom_dists = self.compute_geom_dists()
+        #setattr(self.model, 'geom_dists', geom_dists)
     
 
     def robot_obj_collision_dist(self, obj_name):
